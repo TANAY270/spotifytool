@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoSpotify</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="logo">
+          <span class="logo-icon" aria-hidden="true">♫</span>
+          <div>
+            <h1>AutoSpotify</h1>
+            <p class="subtitle">YouTube ↔ Spotify sync</p>
+          </div>
+        </div>
+      </header>
+
+      <section class="card status-card">
+        <div class="status-row">
+          <span class="label">Spotify</span>
+          <span id="login-status" class="badge badge-muted">Checking…</span>
+        </div>
+        <p id="profile-name" class="profile-name hidden"></p>
+        <div class="auth-actions">
+          <button id="btn-login" class="btn btn-primary" type="button">Connect Spotify</button>
+          <button id="btn-logout" class="btn btn-ghost hidden" type="button">Disconnect</button>
+        </div>
+        <p id="redirect-hint" class="hint hidden"></p>
+      </section>
+
+      <section class="card">
+        <div class="toggle-row">
+          <div>
+            <span class="label">Enable AutoSpotify</span>
+            <p class="hint">Master switch for all sync behavior</p>
+          </div>
+          <label class="switch">
+            <input id="toggle-enabled" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="toggle-row">
+          <div>
+            <span class="label">Auto Pause</span>
+            <p class="hint">Pause Spotify when YouTube plays</p>
+          </div>
+          <label class="switch">
+            <input id="toggle-auto-pause" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <span class="label">Auto Resume</span>
+            <p class="hint">Resume Spotify when YouTube pauses</p>
+          </div>
+          <label class="switch">
+            <input id="toggle-auto-resume" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <label for="resume-delay" class="label">Resume delay (seconds)</label>
+          <input
+            id="resume-delay"
+            type="number"
+            min="0"
+            max="30"
+            step="1"
+            value="2"
+          />
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p id="footer-status" class="footer-text">Loading…</p>
+      </footer>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

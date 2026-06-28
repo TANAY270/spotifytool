@@ -1,0 +1,10 @@
+# Local config overrides (optional)
+config.local.js
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
