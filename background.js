@@ -285,6 +285,9 @@ async function resumeSpotifyAfterYoutube(token) {
     const body = {};
     if (snapshot.contextUri) {
       body.context_uri = snapshot.contextUri;
+      if (snapshot.trackUri) {
+        body.offset = { uri: snapshot.trackUri };
+      }
     } else if (snapshot.trackUri) {
       body.uris = [snapshot.trackUri];
     }
