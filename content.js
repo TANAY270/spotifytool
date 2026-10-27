@@ -99,6 +99,47 @@
     return `${state.playing}|${state.isAd}|${state.ended}`;
   }
 
+  /** Interval timer for fallback URL tracking */
+  let urlInterval = null;
+
+  /**
+   * Check if extension runtime is still valid (not uninstalled or reloaded).
+   * @returns {boolean}
+   */
+  function isContextValid() {
+    try {
+      return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Cease all activity and disconnect observers if extension context is invalidated.
+   */
+  function cleanup() {
+    if (throttleTimer) {
+      clearTimeout(throttleTimer);
+      throttleTimer = null;
+    }
+    if (urlInterval) {
+      clearInterval(urlInterval);
+      urlInterval = null;
+    }
+    if (playerObserver) {
+      playerObserver.disconnect();
+      playerObserver = null;
+    }
+    if (adObserver) {
+      adObserver.disconnect();
+      adObserver = null;
+    }
+    if (videoElement) {
+      unbindVideo(videoElement);
+      videoElement = null;
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Reporting
   // -------------------------------------------------------------------------
@@ -108,6 +149,11 @@
    * @param {string} [trigger]
    */
   function sendStateNow(trigger) {
+    if (!isContextValid()) {
+      cleanup();
+      return;
+    }
+
     if (throttleTimer) {
       clearTimeout(throttleTimer);
       throttleTimer = null;
@@ -126,13 +172,23 @@
     }
     lastReportedSignature = signature;
 
-    chrome.runtime.sendMessage(
-      { type: 'YOUTUBE_STATE', payload: state, trigger },
-      () => {
-        // Extension context may be invalidated on reload — ignore
-        void chrome.runtime.lastError;
-      },
-    );
+    try {
+      if (!isContextValid()) {
+        cleanup();
+        return;
+      }
+
+      chrome.runtime.sendMessage(
+        { type: 'YOUTUBE_STATE', payload: state, trigger },
+        () => {
+          // Extension context may be invalidated on reload — ignore
+          void chrome.runtime.lastError;
+        },
+      );
+    } catch {
+      // Extension context invalidated (e.g. extension was reloaded)
+      cleanup();
+    }
   }
 
   /**
@@ -140,6 +196,11 @@
    * @param {string} [trigger]
    */
   function reportStateDebounced(trigger) {
+    if (!isContextValid()) {
+      cleanup();
+      return;
+    }
+
     if (throttleTimer) {
       clearTimeout(throttleTimer);
     }
@@ -277,7 +338,11 @@
 
     // Fallback for navigation events
     let lastUrl = location.href;
-    setInterval(() => {
+    urlInterval = setInterval(() => {
+      if (!isContextValid()) {
+        cleanup();
+        return;
+      }
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         lastReportedSignature = '';
