@@ -41,7 +41,15 @@
 
     if (player.classList.contains('ad-showing')) return true;
     if (player.classList.contains('ad-interrupting')) return true;
-    if (document.querySelector('.ytp-ad-player-overlay, .video-ads, .ytp-ad-text')) {
+
+    // Check for ad overlays or text
+    if (document.querySelector('.ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-skip-button, .ytp-ad-preview-container')) {
+      return true;
+    }
+
+    // Check if the video-ads container actually contains active ad nodes
+    const videoAdsContainer = document.querySelector('.video-ads');
+    if (videoAdsContainer && videoAdsContainer.children.length > 0) {
       return true;
     }
 

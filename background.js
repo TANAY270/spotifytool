@@ -27,6 +27,8 @@ let apiCallInProgress = false;
 // Initialization
 // ---------------------------------------------------------------------------
 
+restoreYoutubeTabStates().catch(console.error);
+
 chrome.runtime.onInstalled.addListener(async () => {
   await AutoSpotifyStorage.savePreferences(
     (await AutoSpotifyStorage.getPreferences()) || {},
@@ -235,7 +237,9 @@ async function pauseSpotifyForYoutube(token) {
 
   try {
     apiCallInProgress = true;
+    console.log('[AutoSpotify] Evaluating Spotify playback state before pause...');
     const state = await getSpotifyPlaybackState(token);
+    console.log('[AutoSpotify] Current Spotify state:', state?.is_playing ? 'Playing' : 'Paused/Inactive');
 
     if (state?.is_playing) {
       await AutoSpotifyStorage.savePlaybackSnapshot({
@@ -250,8 +254,13 @@ async function pauseSpotifyForYoutube(token) {
         { method: 'PUT', headers: { Authorization: `Bearer ${token}` } },
       );
 
+      console.log('[AutoSpotify] Spotify pause response status:', response.status);
       if (response.ok || response.status === 204) {
         spotifyPausedByExtension = true;
+        console.log('[AutoSpotify] Spotify successfully paused.');
+      } else {
+        const errorText = await response.text();
+        console.error('[AutoSpotify] Failed to pause Spotify:', response.status, errorText);
       }
     } else if (!spotifyPausedByExtension) {
       await AutoSpotifyStorage.savePlaybackSnapshot({
@@ -261,6 +270,8 @@ async function pauseSpotifyForYoutube(token) {
         positionMs: 0,
       });
     }
+  } catch (err) {
+    console.error('[AutoSpotify] Error in pauseSpotifyForYoutube:', err);
   } finally {
     apiCallInProgress = false;
   }
@@ -274,40 +285,57 @@ async function resumeSpotifyAfterYoutube(token) {
   if (apiCallInProgress) return;
 
   const snapshot = await AutoSpotifyStorage.getPlaybackSnapshot();
+  console.log('[AutoSpotify] Checking resume snapshot wasPlaying:', snapshot.wasPlaying);
   if (!snapshot.wasPlaying) return;
 
   const { anyNonAdPlaying } = getAggregateYoutubeState();
-  if (anyNonAdPlaying) return;
+  if (anyNonAdPlaying) {
+    console.log('[AutoSpotify] YouTube is still playing, skipping resume.');
+    return;
+  }
 
   try {
     apiCallInProgress = true;
+    console.log('[AutoSpotify] Resuming Spotify playback...');
 
-    const body = {};
-    if (snapshot.contextUri) {
-      body.context_uri = snapshot.contextUri;
-      if (snapshot.trackUri) {
-        body.offset = { uri: snapshot.trackUri };
-      }
-    } else if (snapshot.trackUri) {
-      body.uris = [snapshot.trackUri];
-    }
-
-    if (snapshot.positionMs > 0) {
-      body.position_ms = snapshot.positionMs;
-    }
-
-    const response = await fetch(
+    // First attempt: Simple unpause on current active player
+    let response = await fetch(
       `${AUTOSPOTIFY_CONFIG.SPOTIFY_API_BASE}/me/player/play`,
       {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: Object.keys(body).length ? JSON.stringify(body) : undefined,
+        headers: { Authorization: `Bearer ${token}` },
       },
     );
 
+    // If simple unpause returned an error (e.g. inactive player) and we have snapshot URI, try with snapshot payload
+    if (!response.ok && response.status !== 204) {
+      const body = {};
+      if (snapshot.contextUri) {
+        body.context_uri = snapshot.contextUri;
+        if (snapshot.trackUri) body.offset = { uri: snapshot.trackUri };
+      } else if (snapshot.trackUri) {
+        body.uris = [snapshot.trackUri];
+      }
+      if (snapshot.positionMs > 0) {
+        body.position_ms = snapshot.positionMs;
+      }
+
+      if (Object.keys(body).length > 0) {
+        response = await fetch(
+          `${AUTOSPOTIFY_CONFIG.SPOTIFY_API_BASE}/me/player/play`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+          },
+        );
+      }
+    }
+
+    console.log('[AutoSpotify] Spotify resume response status:', response.status);
     if (response.ok || response.status === 204) {
       spotifyPausedByExtension = false;
       await AutoSpotifyStorage.savePlaybackSnapshot({
@@ -316,7 +344,13 @@ async function resumeSpotifyAfterYoutube(token) {
         trackUri: null,
         positionMs: 0,
       });
+      console.log('[AutoSpotify] Spotify resumed successfully.');
+    } else {
+      const errorText = await response.text();
+      console.error('[AutoSpotify] Failed to resume Spotify:', response.status, errorText);
     }
+  } catch (err) {
+    console.error('[AutoSpotify] Error in resumeSpotifyAfterYoutube:', err);
   } finally {
     apiCallInProgress = false;
   }

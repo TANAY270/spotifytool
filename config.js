@@ -10,8 +10,8 @@
  * add a "key" field to manifest.json (see README).
  */
 const CONFIG = {
-  SPOTIFY_CLIENT_ID: 'your spotify client id',
-    SPOTIFY_AUTH_URL: 'https://accounts.spotify.com/authorize',
+  SPOTIFY_CLIENT_ID: '4f96b2222293458589e250e040986d93',
+  SPOTIFY_AUTH_URL: 'https://accounts.spotify.com/authorize',
   SPOTIFY_TOKEN_URL: 'https://accounts.spotify.com/api/token',
   SPOTIFY_API_BASE: 'https://api.spotify.com/v1',
 
