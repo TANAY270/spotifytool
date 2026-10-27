@@ -73,13 +73,17 @@
    * @returns {{ playing: boolean, isAd: boolean, ended: boolean }}
    */
   function readVideoState() {
-    const video = videoElement || document.querySelector('video');
+    const video = videoElement || document.querySelector('video.html5-main-video, #movie_player video, video');
     if (!video) {
       return { playing: false, isAd: false, ended: false };
     }
 
     const isAd = isAdPlaying();
-    const ended = video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.5);
+    const ended =
+      video.ended ||
+      (Number.isFinite(video.duration) &&
+        video.duration > 0 &&
+        video.currentTime >= video.duration - 0.5);
 
     // During ads, treat as non-user playback (ignore for Spotify sync)
     const playing = !video.paused && !video.ended && video.readyState >= 2;
@@ -100,29 +104,50 @@
   // -------------------------------------------------------------------------
 
   /**
-   * Send state to background, throttled and deduplicated.
+   * Send state to background immediately, clearing any pending debounce.
    * @param {string} [trigger]
    */
-  function reportState(trigger) {
-    if (throttleTimer) return;
+  function sendStateNow(trigger) {
+    if (throttleTimer) {
+      clearTimeout(throttleTimer);
+      throttleTimer = null;
+    }
+
+    const state = readVideoState();
+    const signature = stateSignature(state);
+
+    if (
+      signature === lastReportedSignature &&
+      trigger !== 'pause' &&
+      trigger !== 'play' &&
+      trigger !== 'ended'
+    ) {
+      return;
+    }
+    lastReportedSignature = signature;
+
+    chrome.runtime.sendMessage(
+      { type: 'YOUTUBE_STATE', payload: state, trigger },
+      () => {
+        // Extension context may be invalidated on reload — ignore
+        void chrome.runtime.lastError;
+      },
+    );
+  }
+
+  /**
+   * Send state to background with trailing debounce.
+   * @param {string} [trigger]
+   */
+  function reportStateDebounced(trigger) {
+    if (throttleTimer) {
+      clearTimeout(throttleTimer);
+    }
 
     throttleTimer = setTimeout(() => {
       throttleTimer = null;
-
-      const state = readVideoState();
-      const signature = stateSignature(state);
-
-      if (signature === lastReportedSignature) return;
-      lastReportedSignature = signature;
-
-      chrome.runtime.sendMessage(
-        { type: 'YOUTUBE_STATE', payload: state, trigger },
-        () => {
-          // Extension context may be invalidated on reload — ignore
-          void chrome.runtime.lastError;
-        },
-      );
-    }, REPORT_THROTTLE_MS);
+      sendStateNow(trigger);
+    }, 150);
   }
 
   // -------------------------------------------------------------------------
@@ -147,7 +172,7 @@
       video.addEventListener(event, onVideoEvent, { passive: true });
     }
 
-    reportState('bind');
+    sendStateNow('bind');
   }
 
   /**
@@ -161,10 +186,17 @@
   }
 
   function onVideoEvent(event) {
-    // Natural video end should not trigger Spotify resume
+    // Explicit user action: natural end
     if (event.type === 'ended') {
-      lastReportedSignature = ''; // force report
-      reportState('ended');
+      lastReportedSignature = '';
+      sendStateNow('ended');
+      return;
+    }
+
+    // Explicit user action: play or pause — report immediately!
+    if (event.type === 'play' || event.type === 'pause') {
+      lastReportedSignature = '';
+      sendStateNow(event.type);
       return;
     }
 
@@ -174,12 +206,12 @@
       const wasAd = lastReportedSignature.includes('|true|');
       if (adNow !== wasAd) {
         lastReportedSignature = '';
-        reportState('ad-change');
+        reportStateDebounced('ad-change');
       }
       return;
     }
 
-    reportState(event.type);
+    reportStateDebounced(event.type);
   }
 
   /**
@@ -218,7 +250,7 @@
 
     adObserver = new MutationObserver(() => {
       lastReportedSignature = '';
-      reportState('ad-mutation');
+      reportStateDebounced('ad-mutation');
     });
 
     adObserver.observe(player, { attributes: true, attributeFilter: ['class'] });
@@ -239,7 +271,7 @@
       setTimeout(() => {
         findAndBindVideo();
         observeAdState();
-        reportState('navigate');
+        reportStateDebounced('navigate');
       }, 500);
     });
 
@@ -252,7 +284,7 @@
         setTimeout(() => {
           findAndBindVideo();
           observeAdState();
-          reportState('url-change');
+          reportStateDebounced('url-change');
         }, 500);
       }
     }, 1000);

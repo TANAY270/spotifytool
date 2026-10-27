@@ -82,12 +82,15 @@ async function clearAuth() {
 
 /**
  * Snapshot of Spotify playback before YouTube took over.
- * @returns {Promise<{ wasPlaying: boolean, contextUri: string|null, trackUri: string|null, positionMs: number }>}
+ * @returns {Promise<{ wasPlaying: boolean, pausedByExtension: boolean, deviceId: string|null, deviceName: string|null, contextUri: string|null, trackUri: string|null, positionMs: number }>}
  */
 async function getPlaybackSnapshot() {
   return (
     (await storageGet(STORAGE_KEYS.PLAYBACK_STATE)) || {
       wasPlaying: false,
+      pausedByExtension: false,
+      deviceId: null,
+      deviceName: null,
       contextUri: null,
       trackUri: null,
       positionMs: 0,

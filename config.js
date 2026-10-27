@@ -23,7 +23,7 @@ const CONFIG = {
   ],
 
   /** Debounce window for rapid YouTube play/pause events (ms) */
-  DEBOUNCE_MS: 600,
+  DEBOUNCE_MS: 250,
 
   /** Default resume delay if not set in storage (seconds) */
   DEFAULT_RESUME_DELAY_SEC: 2,
